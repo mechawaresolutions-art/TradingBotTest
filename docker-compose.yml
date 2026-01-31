@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  forex-bot:
+    build: .
+    container_name: forex-bot
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL}
+      - HEARTBEAT_INTERVAL=${HEARTBEAT_INTERVAL:-60}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - BOT_NAME=${BOT_NAME:-ForexBot}
+      - INITIAL_BALANCE=${INITIAL_BALANCE:-10000.0}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
