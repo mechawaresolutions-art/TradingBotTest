@@ -1,10 +1,9 @@
 """Event notification system for n8n webhook integration."""
 import logging
-import json
 from typing import Any, Dict
 from datetime import datetime
 import requests
-from config import Config
+from app.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +14,6 @@ class Notifier:
     def __init__(self, webhook_url: str) -> None:
         self.webhook_url = webhook_url
         self.session = requests.Session()
-        self.session.timeout = 5  # 5 second timeout
 
     def send_event(self, event_type: str, data: Dict[str, Any]) -> bool:
         """

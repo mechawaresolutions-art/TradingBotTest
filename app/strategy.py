@@ -1,9 +1,9 @@
 """Trading strategy module."""
 import logging
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 from dataclasses import dataclass
-from broker import PaperBroker
-from risk import RiskManager
+from app.broker import PaperBroker
+from app.risk import RiskManager
 
 logger = logging.getLogger(__name__)
 

@@ -6,11 +6,11 @@ from typing import Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
 
-from config import Config
-from broker import PaperBroker
-from risk import RiskManager
-from strategy import Strategy
-from notifier import Notifier
+from app.config import Config
+from app.broker import PaperBroker
+from app.risk import RiskManager
+from app.strategy import Strategy
+from app.notifier import Notifier
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +142,8 @@ class TradingBot:
         try:
             while self.running:
                 try:
-                    self.stats["iterations"] += 1
+                    with self._lock:
+                        self.stats["iterations"] += 1
                     
                     # Placeholder market data (stub)
                     market_data = {
@@ -177,7 +178,8 @@ class TradingBot:
                         last_heartbeat = now
                         status = self.get_status()
                         self.notifier.send_heartbeat(status)
-                        self.stats["last_heartbeat"] = datetime.utcnow()
+                        with self._lock:
+                            self.stats["last_heartbeat"] = datetime.utcnow()
                     
                     # Sleep to avoid busy loop
                     time.sleep(1)

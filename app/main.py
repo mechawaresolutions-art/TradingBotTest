@@ -5,8 +5,8 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Dict, Any
 
-from config import Config
-from bot import TradingBot
+from app.config import Config
+from app.bot import TradingBot
 
 # Configure logging
 logging.basicConfig(

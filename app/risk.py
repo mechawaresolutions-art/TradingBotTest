@@ -1,7 +1,6 @@
 """Risk management module."""
 import logging
-from typing import Optional
-from broker import PaperBroker
+from app.broker import PaperBroker
 
 logger = logging.getLogger(__name__)
 
