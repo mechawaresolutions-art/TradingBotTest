@@ -1,278 +1,237 @@
-<<<<<<< HEAD
-# TradingBotTest
-=======
-# Forex Trading Bot
+# Forex Trading Bot v2.0
 
-A minimal, production-oriented forex trading bot skeleton with FastAPI control interface and n8n webhook integration.
+A production-oriented forex trading bot with:
+- **FastAPI REST control interface** (start/stop/status)
+- **Market Data Pipeline** (database-backed candles, gap detection, backfill)
+- **Background Trading Loop** (thread-safe, graceful shutdown)
+- **n8n Webhook Integration** (events, monitoring)
+- **Paper Trading Broker** (position management, P&L)
+- **Risk Management** (extensible rules engine)
 
-## Features
+## Quick Start
 
-- **FastAPI Control**: Start/stop/status endpoints for bot management
-- **Background Trading Loop**: Runs trading logic in dedicated thread
-- **n8n Integration**: Send events via HTTP webhooks (started, stopped, heartbeat, errors)
-- **Paper Broker**: Placeholder for position management and P&L tracking
-- **Risk Management**: Extensible risk management system
-- **Strategy Stub**: Ready for your trading logic implementation
-- **Type Hints**: Production-ready code with type annotations
-- **Error Handling**: Robust error handling that never crashes the bot
+### 1. Start Dependencies (Docker)
 
-## Project Structure
-
-```
-forex_bot/
-├── app/
-│   ├── main.py           # FastAPI entrypoint
-│   ├── bot.py            # Trading loop controller
-│   ├── strategy.py       # Trading strategy (stub)
-│   ├── broker.py         # Paper broker implementation
-│   ├── risk.py           # Risk management module
-│   ├── notifier.py       # n8n webhook sender
-│   └── config.py         # Configuration management
-├── requirements.txt
-└── README.md
-```
-
-## Installation
-
-### Prerequisites
-- Python 3.10+
-- pip
-
-### Setup
-
-1. Clone the repository and navigate to the project:
 ```bash
-cd forex_bot
+docker-compose up -d postgres adminer
 ```
 
-2. Create a virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
+Check Postgres at `localhost:5432` or Adminer at `http://localhost:8080`
 
-3. Install dependencies:
+### 2. Install & Setup
+
 ```bash
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
+
+cp .env.example .env
+nano .env  # Configure N8N_WEBHOOK_URL, DATABASE_URL
 ```
 
-4. Create `.env` file:
-```env
-N8N_WEBHOOK_URL=http://your-n8n-instance/webhook/your-webhook-id
-HEARTBEAT_INTERVAL=60
-LOG_LEVEL=INFO
-BOT_NAME=ForexBot
-INITIAL_BALANCE=10000.0
-```
-
-## Running the Bot
-
-### Production (VPS)
-
-Use a process manager like `supervisor` or `systemd`:
-
-```bash
-# systemd service file example (/etc/systemd/system/forex-bot.service)
-[Unit]
-Description=Forex Trading Bot
-After=network.target
-
-[Service]
-Type=simple
-User=trading
-WorkingDirectory=/path/to/forex_bot
-Environment="PATH=/path/to/forex_bot/venv/bin"
-ExecStart=/path/to/forex_bot/venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start:
-```bash
-sudo systemctl enable forex-bot
-sudo systemctl start forex-bot
-```
-
-### Development
+### 3. Run Bot
 
 ```bash
 cd app
 python main.py
 ```
 
-Or using uvicorn directly:
+Bot runs at `http://localhost:8000`
+
+---
+
+## Market Data API (MACRO 1)
+
+### Endpoints - Public
+
+#### Get Latest Candle
 ```bash
-cd app
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+curl "http://localhost:8000/v1/candles/latest?symbol=EURUSD&timeframe=M5"
 ```
 
-## API Endpoints
-
-### Start Bot
+#### Get Candle History
 ```bash
-curl -X POST http://localhost:8000/start
+curl "http://localhost:8000/v1/candles?symbol=EURUSD&timeframe=M5&limit=100"
 ```
 
-Response:
-```json
-{
-  "message": "Trading bot started successfully"
-}
-```
+Parameters: `symbol`, `timeframe`, `start` (ISO-8601), `end` (ISO-8601), `limit`
 
-### Stop Bot
+#### Check Data Integrity
 ```bash
-curl -X POST http://localhost:8000/stop
+curl "http://localhost:8000/v1/candles/integrity?symbol=EURUSD&timeframe=M5&days=7"
 ```
 
-Response:
-```json
-{
-  "message": "Trading bot stopped successfully"
-}
-```
+Returns: earliest, latest, expected count, actual count, missing ranges, is_complete
 
-### Get Status
+### Endpoints - Admin
+
+#### Ingest Candles
 ```bash
-curl -X GET http://localhost:8000/status
+curl -X POST "http://localhost:8000/v1/candles/admin/ingest?symbol=EURUSD&timeframe=M5"
 ```
 
-Response:
-```json
-{
-  "state": "running",
-  "running": true,
-  "balance": 10000.0,
-  "equity": 10000.0,
-  "positions_count": 0,
-  "iterations": 120,
-  "started_at": "2024-01-31T12:30:45.123456"
-}
-```
+**Logic:**
+1. Find latest candle in DB
+2. If empty: fetch last 7 days
+3. If exists: fetch from (latest - overlap) with 10 candle overlap
+4. Validate OHLC constraints
+5. Upsert (no duplicates via UNIQUE constraint)
+6. Run integrity check
 
-### Health Check
+#### Backfill Range
 ```bash
-curl -X GET http://localhost:8000/health
+curl -X POST "http://localhost:8000/v1/candles/admin/backfill" \
+  -G -d "symbol=EURUSD" -d "timeframe=M5" \
+  -d "start=2024-01-24T00:00:00Z" \
+  -d "end=2024-01-25T00:00:00Z"
 ```
 
-## n8n Integration
+---
 
-The bot sends events to n8n via POST requests to your webhook URL. Event structure:
+## Trading Bot API (MACRO 2)
 
-```json
-{
-  "timestamp": "2024-01-31T12:30:45.123456",
-  "event_type": "heartbeat",
-  "bot_name": "ForexBot",
-  "data": {
-    "state": "running",
-    "running": true,
-    "balance": 10000.0,
-    "equity": 10000.0,
-    "positions_count": 0,
-    "iterations": 120,
-    "started_at": "2024-01-31T12:30:45.123456"
-  }
-}
+### Control Endpoints
+
+```bash
+POST   /start          # Start trading bot
+POST   /stop           # Stop trading bot
+GET    /status         # Bot metrics
+GET    /health         # Health check
 ```
 
-### Event Types
-- **started**: Bot started
-- **stopped**: Bot stopped
-- **heartbeat**: Periodic status update (default: every 60 seconds)
-- **error**: Bot encountered an error
-
-## Extending the Bot
-
-### Add a Trading Strategy
-
-Edit `app/strategy.py`:
-
-```python
-def generate_signals(self, market_data: Dict[str, Any]) -> list[TradeSignal]:
-    """Your trading logic here."""
-    signals = []
-    
-    # Example: Generate buy signal
-    if market_data.get("price") > 100:
-        signals.append(TradeSignal(
-            symbol="EURUSD",
-            side="BUY",
-            quantity=0.1,
-            entry_price=market_data["price"]
-        ))
-    
-    return signals
-```
-
-### Add Broker Integration
-
-Replace `app/broker.py` with your broker API (MT5, OANDA, etc.). The interface is:
-- `open_position(symbol, quantity, entry_price, side) -> Position`
-- `close_position(symbol, exit_price) -> float`
-- `get_balance() -> float`
-- `get_positions() -> Dict[str, Position]`
-- `get_equity(current_prices) -> float`
-
-### Add Risk Management Rules
-
-Edit `app/risk.py` to implement:
-- Position sizing logic
-- Portfolio heat limits
-- Drawdown controls
-- Trade frequency limits
-
-## Architecture Notes
-
-- **Thread Safety**: All bot operations are guarded by locks to prevent race conditions
-- **Webhook Resilience**: n8n notification failures never crash the bot; errors are logged
-- **State Management**: Clear state machine (STOPPED → RUNNING → ERROR)
-- **Metrics**: Track iterations, P&L, positions, and timestamps for monitoring
-- **Logging**: All operations logged at appropriate levels (INFO, WARNING, ERROR)
+---
 
 ## Configuration
 
-All settings come from environment variables (`.env` file):
+Create `.env` file (see `.env.example`):
 
-| Variable | Default | Required | Description |
-|----------|---------|----------|-------------|
-| N8N_WEBHOOK_URL | - | Yes | n8n webhook endpoint |
-| HEARTBEAT_INTERVAL | 60 | No | Seconds between status updates |
-| LOG_LEVEL | INFO | No | Python logging level |
-| BOT_NAME | ForexBot | No | Bot identifier for webhooks |
-| INITIAL_BALANCE | 10000.0 | No | Paper trading starting balance |
+```env
+# Bot
+N8N_WEBHOOK_URL=http://localhost:5678/webhook/forex-bot
+HEARTBEAT_INTERVAL=60
+BOT_NAME=ForexBot
+INITIAL_BALANCE=10000.0
+
+# Database
+DATABASE_URL=postgresql+asyncpg://tradingbot:pass@localhost:5432/tradingbot
+
+# Market Data
+SYMBOL=EURUSD
+TIMEFRAME=M5
+INGEST_OVERLAP_CANDLES=10
+INITIAL_BACKFILL_DAYS=7
+MARKET_DATA_PROVIDER=mock  # or 'real' when implemented
+```
+
+---
+
+## Project Structure
+
+```
+forex_bot/
+├── app/
+│   ├── main.py                  # FastAPI entrypoint
+│   ├── config.py                # Env configuration
+│   ├── bot.py                   # Trading loop
+│   ├── broker.py                # Paper broker
+│   ├── strategy.py              # Strategy stub
+│   ├── risk.py                  # Risk rules
+│   ├── notifier.py              # n8n notifications
+│   └── marketdata/              # MACRO 1: Market Data Pipeline
+│       ├── models.py            # Candle ORM
+│       ├── schemas.py           # Pydantic schemas
+│       ├── db.py                # Async DB engine
+│       ├── provider_base.py     # Provider interface
+│       ├── provider_mock.py     # Deterministic mock
+│       ├── provider_real.py     # Real broker (stub)
+│       ├── ingest.py           # Ingestion logic
+│       ├── integrity.py        # Gap detection
+│       ├── router.py           # FastAPI routes
+│       └── __init__.py
+├── tests/
+│   ├── test_marketdata.py       # Pytest suite
+│   └── __init__.py
+├── n8n/
+│   ├── ingest_cron_workflow.json   # Cron every 5 min
+│   └── backfill_workflow.json      # Manual backfill
+├── docker-compose.yml           # Postgres + Bot
+├── requirements.txt
+├── .env.example
+├── README.md
+├── DEPLOYMENT.md
+└── PROJECT_REPORT.md
+```
+
+---
+
+## Testing
+
+```bash
+pytest tests/ -v
+```
+
+Tests verify:
+- ✅ MockProvider determinism
+- ✅ Ingestion idempotency
+- ✅ Gap detection
+- ✅ Backfill
+- ✅ OHLC validation
+- ✅ Candle alignment
+
+---
+
+## Providers
+
+### MockProvider (Default)
+
+Deterministic, no dependencies. Perfect for testing/demos.
+
+### RealProvider (TODO)
+
+To integrate real data:
+
+1. **MetaTrader5**: `pip install MetaTrader5`
+2. **OANDA**: REST API
+3. **Other brokers**: Extend `provider_base.MarketDataProvider`
+
+---
 
 ## Monitoring
 
-### Check logs (systemd)
 ```bash
-sudo journalctl -u forex-bot -f
+# Health
+curl http://localhost:8000/health
+
+# Adminer (DB browser)
+http://localhost:8080
+
+# Logs
+docker-compose logs -f forex-bot
 ```
 
-### Monitor with n8n
-- Create an n8n webhook trigger
-- Use the webhook URL in `N8N_WEBHOOK_URL`
-- Set up notifications/actions based on event types
+---
 
-## Troubleshooting
+## n8n Integration
 
-### Bot won't start
-- Check `.env` file exists and `N8N_WEBHOOK_URL` is set
-- Verify network connectivity to n8n instance
-- Check logs for configuration errors
+Import workflows from `n8n/`:
 
-### n8n webhook calls failing
-- Bot continues operating (graceful degradation)
-- Check n8n webhook URL is correct and accessible
-- Review webhook logs in n8n UI
+1. **Ingest Cron** - Fetches new candles every 5 minutes
+2. **Backfill Manual** - Webhook-triggered backfill for missing ranges
 
-### High CPU usage
-- Increase `HEARTBEAT_INTERVAL` in `.env`
-- Check strategy logic for spinlocks
-- Reduce trading loop frequency if needed
+---
+
+## Extending
+
+### Add Strategy
+Edit `app/strategy.py` - implement `generate_signals()`
+
+### Add Real Provider
+Create `RealProvider` in `app/marketdata/provider_real.py`
+
+### Add Risk Rules
+Edit `app/risk.py` - implement `validate_trade()`
+
+---
 
 ## License
 
@@ -280,5 +239,4 @@ MIT
 
 ## Support
 
-For issues or questions, check the code comments and architecture patterns in `app/bot.py` and `app/notifier.py`.
->>>>>>> c393ecb (Initial commit: Production-ready forex trading bot with FastAPI and n8n integration)
+See `PROJECT_REPORT.md` for detailed architecture and development guide.

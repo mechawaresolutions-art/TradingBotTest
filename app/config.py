@@ -18,6 +18,19 @@ class Config:
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     BOT_NAME: str = os.getenv("BOT_NAME", "ForexBot")
     
+    # Database configuration
+    DATABASE_URL: str = os.getenv(
+        "DATABASE_URL",
+        "postgresql+asyncpg://tradingbot:tradingbot_pass@localhost:5432/tradingbot"
+    )
+    
+    # Market data configuration
+    SYMBOL: str = os.getenv("SYMBOL", "EURUSD")
+    TIMEFRAME: str = os.getenv("TIMEFRAME", "M5")
+    INGEST_OVERLAP_CANDLES: int = 10
+    INITIAL_BACKFILL_DAYS: int = 7
+    MARKET_DATA_PROVIDER: str = os.getenv("MARKET_DATA_PROVIDER", "mock")
+    
     @classmethod
     def validate(cls) -> None:
         """Validate required configuration."""
@@ -41,3 +54,28 @@ class Config:
             cls.INITIAL_BALANCE = balance
         except ValueError as e:
             raise ValueError(f"Invalid INITIAL_BALANCE: {e}")
+        
+        # Parse and validate market data config
+        try:
+            overlap = int(os.getenv("INGEST_OVERLAP_CANDLES", "10"))
+            if overlap < 0:
+                raise ValueError("INGEST_OVERLAP_CANDLES must be non-negative")
+            cls.INGEST_OVERLAP_CANDLES = overlap
+        except ValueError as e:
+            raise ValueError(f"Invalid INGEST_OVERLAP_CANDLES: {e}")
+        
+        try:
+            backfill = int(os.getenv("INITIAL_BACKFILL_DAYS", "7"))
+            if backfill < 1:
+                raise ValueError("INITIAL_BACKFILL_DAYS must be at least 1")
+            cls.INITIAL_BACKFILL_DAYS = backfill
+        except ValueError as e:
+            raise ValueError(f"Invalid INITIAL_BACKFILL_DAYS: {e}")
+        
+        # Validate provider
+        if cls.MARKET_DATA_PROVIDER not in ("mock", "real"):
+            raise ValueError(f"Invalid MARKET_DATA_PROVIDER: {cls.MARKET_DATA_PROVIDER}")
+        
+        # Validate database URL
+        if not cls.DATABASE_URL.startswith(("postgresql", "sqlite")):
+            raise ValueError("DATABASE_URL must be postgresql or sqlite")

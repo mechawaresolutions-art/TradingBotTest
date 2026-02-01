@@ -1,0 +1,81 @@
+{
+  "name": "Forex Bot - Market Data Backfill (Manual)",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "uuid:webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "market-data-backfill"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://localhost:8000/v1/candles/admin/backfill?symbol=' + $json.symbol + '&timeframe=' + $json.timeframe + '&start=' + encodeURIComponent($json.start) + '&end=' + encodeURIComponent($json.end) }}",
+        "authentication": "none",
+        "sendBody": false,
+        "options": {}
+      },
+      "id": "uuid:http-backfill-request",
+      "name": "HTTP - Backfill Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "message": "✅ Backfill completed for {{$json.symbol}}/{{$json.timeframe}}"
+      },
+      "id": "uuid:success-log",
+      "name": "Log - Backfill Success",
+      "type": "n8n-nodes-base.logStreamMessage",
+      "typeVersion": 1,
+      "position": [
+        750,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Backfill Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Backfill Request": {
+      "main": [
+        [
+          {
+            "node": "Log - Backfill Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "staticData": null,
+  "tags": [
+    "market-data",
+    "forex-bot",
+    "backfill"
+  ]
+}

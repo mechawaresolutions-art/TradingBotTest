@@ -7,6 +7,7 @@ from typing import Dict, Any
 
 from app.config import Config
 from app.bot import TradingBot
+from app.marketdata import init_db, close_db, router as marketdata_router
 
 # Configure logging
 logging.basicConfig(
@@ -23,7 +24,7 @@ except ValueError as e:
     sys.exit(1)
 
 # Initialize FastAPI and bot
-app = FastAPI(title="Forex Trading Bot", version="1.0.0")
+app = FastAPI(title="Forex Trading Bot", version="2.0.0")
 bot = TradingBot(webhook_url=Config.N8N_WEBHOOK_URL, initial_balance=Config.INITIAL_BALANCE)
 
 
@@ -41,6 +42,38 @@ class StatusResponse(BaseModel):
     positions_count: int
     iterations: int
     started_at: str | None
+
+
+# Include market data router
+app.include_router(marketdata_router)
+
+
+@app.on_event("startup")
+async def startup_event() -> None:
+    """Initialize database on startup."""
+    logger.info("Initializing market data pipeline...")
+    try:
+        await init_db()
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}", exc_info=True)
+        raise
+
+
+@app.on_event("shutdown")
+async def shutdown_event() -> None:
+    """Cleanup on shutdown."""
+    logger.info("Shutting down...")
+    
+    if bot.running:
+        logger.info("Stopping bot...")
+        bot.stop()
+    
+    logger.info("Closing database connections...")
+    try:
+        await close_db()
+    except Exception as e:
+        logger.warning(f"Error closing database: {e}")
 
 
 @app.post("/start", response_model=MessageResponse)
@@ -74,22 +107,15 @@ async def health_check() -> MessageResponse:
     return MessageResponse(message="OK")
 
 
-@app.on_event("shutdown")
-async def shutdown_event() -> None:
-    """Cleanup on shutdown."""
-    if bot.running:
-        logger.info("Shutting down - stopping bot...")
-        bot.stop()
-
-
 if __name__ == "__main__":
     import uvicorn
     
-    logger.info(f"Starting {Config.BOT_NAME} on 0.0.0.0:8000")
+    logger.info(f"Starting {Config.BOT_NAME} v2.0.0 on 0.0.0.0:8000")
+    logger.info(f"Market Data Provider: {Config.MARKET_DATA_PROVIDER}")
     logger.info(f"N8N webhook: {Config.N8N_WEBHOOK_URL}")
     
     uvicorn.run(
-        "main:app",
+        "app.main:app",
         host="0.0.0.0",
         port=8000,
         reload=False

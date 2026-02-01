@@ -1,0 +1,140 @@
+{
+  "name": "Forex Bot - Market Data Ingest (Cron)",
+  "nodes": [
+    {
+      "parameters": {
+        "interval": [
+          {
+            "recurrence": "everyMinutes",
+            "value": 5
+          }
+        ]
+      },
+      "id": "uuid:trigger-cron",
+      "name": "Cron - Every 5 minutes",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/v1/candles/admin/ingest?symbol=EURUSD&timeframe=M5",
+        "authentication": "none",
+        "sendBody": false,
+        "options": {}
+      },
+      "id": "uuid:http-ingest",
+      "name": "HTTP - Ingest Candles",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "rules": [
+            {
+              "key": "data.missing_ranges",
+              "operation": "notEmpty"
+            }
+          ]
+        }
+      },
+      "id": "uuid:if-missing-ranges",
+      "name": "IF - Has missing ranges",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        750,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$node['HTTP - Ingest Candles'].json.missing_ranges | join(',') | 'http://localhost:8000/v1/candles/admin/backfill?symbol=EURUSD&timeframe=M5&start=' + $nodeInputData[0].start + '&end=' + $nodeInputData[0].end}}",
+        "authentication": "none",
+        "sendBody": false,
+        "options": {}
+      },
+      "id": "uuid:http-backfill",
+      "name": "HTTP - Backfill Missing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1000,
+        200
+      ],
+      "onError": "continueBothBranches"
+    },
+    {
+      "parameters": {
+        "message": "✅ Market data ingested successfully. No gaps detected."
+      },
+      "id": "uuid:no-backfill-log",
+      "name": "Log - No backfill needed",
+      "type": "n8n-nodes-base.logStreamMessage",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Cron - Every 5 minutes": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Ingest Candles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Ingest Candles": {
+      "main": [
+        [
+          {
+            "node": "IF - Has missing ranges",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Has missing ranges": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Backfill Missing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log - No backfill needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "staticData": null,
+  "tags": [
+    "market-data",
+    "forex-bot"
+  ]
+}

@@ -1,6 +1,34 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: forex-bot-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${DB_USER:-tradingbot}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-tradingbot_pass}
+      POSTGRES_DB: ${DB_NAME:-tradingbot}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-tradingbot}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  adminer:
+    image: adminer:latest
+    container_name: forex-bot-adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   forex-bot:
     build: .
     container_name: forex-bot
@@ -8,14 +36,26 @@ services:
     ports:
       - "8000:8000"
     environment:
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER:-tradingbot}:${DB_PASSWORD:-tradingbot_pass}@postgres:5432/${DB_NAME:-tradingbot}
       - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL}
       - HEARTBEAT_INTERVAL=${HEARTBEAT_INTERVAL:-60}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - BOT_NAME=${BOT_NAME:-ForexBot}
       - INITIAL_BALANCE=${INITIAL_BALANCE:-10000.0}
+      - SYMBOL=${SYMBOL:-EURUSD}
+      - TIMEFRAME=${TIMEFRAME:-M5}
+      - INGEST_OVERLAP_CANDLES=${INGEST_OVERLAP_CANDLES:-10}
+      - INITIAL_BACKFILL_DAYS=${INITIAL_BACKFILL_DAYS:-7}
+      - MARKET_DATA_PROVIDER=${MARKET_DATA_PROVIDER:-mock}
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
+
+volumes:
+  postgres_data:
