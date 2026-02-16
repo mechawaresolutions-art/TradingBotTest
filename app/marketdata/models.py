@@ -1,7 +1,7 @@
 """SQLAlchemy ORM models for market data."""
 from datetime import datetime
 from sqlalchemy import (
-    Column, String, Float, DateTime, UniqueConstraint, Index, CheckConstraint
+    Column, Integer, String, Float, DateTime, UniqueConstraint, Index, CheckConstraint
 )
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.sql import func
@@ -14,6 +14,7 @@ class Candle(Base):
     
     __tablename__ = "candles"
     
+    id = Column(Integer, primary_key=True, autoincrement=True)
     # Primary columns
     symbol = Column(String(20), nullable=False, index=True)
     timeframe = Column(String(10), nullable=False, index=True)

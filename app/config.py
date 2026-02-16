@@ -30,6 +30,9 @@ class Config:
     INGEST_OVERLAP_CANDLES: int = 10
     INITIAL_BACKFILL_DAYS: int = 7
     MARKET_DATA_PROVIDER: str = os.getenv("MARKET_DATA_PROVIDER", "mock")
+    CANDLE_RETENTION_DAYS: int = 180
+    # Execution parameters
+    SPREAD_PIPS: float = float(os.getenv("SPREAD_PIPS", "1.0"))
     
     @classmethod
     def validate(cls) -> None:
@@ -75,6 +78,14 @@ class Config:
         # Validate provider
         if cls.MARKET_DATA_PROVIDER not in ("mock", "real"):
             raise ValueError(f"Invalid MARKET_DATA_PROVIDER: {cls.MARKET_DATA_PROVIDER}")
+        # Parse spread
+        try:
+            spread = float(os.getenv("SPREAD_PIPS", "1.0"))
+            if spread < 0:
+                raise ValueError("SPREAD_PIPS must be non-negative")
+            cls.SPREAD_PIPS = spread
+        except ValueError as e:
+            raise ValueError(f"Invalid SPREAD_PIPS: {e}")
         
         # Validate database URL
         if not cls.DATABASE_URL.startswith(("postgresql", "sqlite")):

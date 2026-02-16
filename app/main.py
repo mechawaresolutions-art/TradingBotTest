@@ -7,7 +7,8 @@ from typing import Dict, Any
 
 from app.config import Config
 from app.bot import TradingBot
-from app.marketdata import init_db, close_db, router as marketdata_router
+from app.marketdata import get_session, init_db, close_db, router as marketdata_router
+from app import execution as execution_pkg
 
 # Configure logging
 logging.basicConfig(
@@ -46,6 +47,12 @@ class StatusResponse(BaseModel):
 
 # Include market data router
 app.include_router(marketdata_router)
+# Include execution router
+try:
+    from app.execution import router as execution_router
+    app.include_router(execution_router)
+except Exception:
+    logger.debug("Execution router not available at import time")
 
 
 @app.on_event("startup")
@@ -53,6 +60,11 @@ async def startup_event() -> None:
     """Initialize database on startup."""
     logger.info("Initializing market data pipeline...")
     try:
+        # Import execution models to ensure they are registered on Base.metadata
+        try:
+            import app.execution.models  # noqa: F401
+        except Exception:
+            logger.debug("No execution models to import yet")
         await init_db()
         logger.info("Database initialized successfully")
     except Exception as e:

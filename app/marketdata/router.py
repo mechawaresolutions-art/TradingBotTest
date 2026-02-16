@@ -14,6 +14,7 @@ from app.marketdata.schemas import (
 )
 from app.marketdata.ingest import IngestionService
 from app.marketdata.integrity import check_integrity
+from app.marketdata.retention import prune_old_candles
 from app.marketdata.provider_mock import MockProvider
 from app.marketdata.provider_real import RealProvider
 
@@ -209,3 +210,19 @@ async def backfill_candles(
     except Exception as e:
         logger.error(f"Backfill failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Backfill failed: {str(e)}")
+
+
+@router.post("/admin/prune")
+async def prune_candles(
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Prune candles older than CANDLE_RETENTION_DAYS.
+    
+    Admin-only endpoint for data maintenance.
+    """
+    try:
+        result = await prune_old_candles(session)
+        return result
+    except Exception as e:
+        logger.error(f"Prune failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Prune failed: {str(e)}")
