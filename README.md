@@ -99,6 +99,48 @@ GET    /status         # Bot metrics
 GET    /health         # Health check
 ```
 
+### Execution Endpoints
+
+```bash
+GET    /v2/account
+GET    /v2/positions
+POST   /v2/orders/market
+POST   /v2/execution/step
+POST   /v1/candles/admin/prune
+```
+
+`POST /v2/orders/market` request body supports:
+- `symbol`, `side`, `qty`
+- optional `sl`, `tp`, `reason`
+- optional `idempotency_key` (retry-safe order submission)
+
+## Strategy v1 + Live Loop (MACRO 3)
+
+Implemented strategy:
+- SMA crossover (`STRAT_SMA_FAST`, `STRAT_SMA_SLOW`)
+- ATR-based SL/TP (`STRAT_ATR_PERIOD`, `STRAT_ATR_SL_MULT`, `STRAT_ATR_TP_MULT`)
+- deterministic idempotency key per candle signal
+- cooldown via orders table (`STRAT_COOLDOWN_CANDLES`)
+
+Strategy status endpoint:
+
+```bash
+GET /v3/strategy/status
+```
+
+Example flow:
+
+```bash
+# start bot loop
+curl -X POST http://localhost:8000/start
+
+# inspect strategy state
+curl http://localhost:8000/v3/strategy/status
+
+# stop bot loop
+curl -X POST http://localhost:8000/stop
+```
+
 ---
 
 ## Configuration
@@ -177,6 +219,32 @@ Tests verify:
 - ✅ Backfill
 - ✅ OHLC validation
 - ✅ Candle alignment
+
+Additional execution hardening tests:
+- ✅ Atomic rollback on mid-operation failure
+- ✅ Deterministic replay and idempotent execution step
+- ✅ Restart recovery with new engine/session lifecycle
+- ✅ Manual/flip close audit trail (`Order -> Fill -> Trade`)
+- ✅ Retry-safe order idempotency key
+- ✅ Strategy v1 indicators + deterministic signal + 200-candle replay idempotency
+
+Run SQLite-focused execution tests:
+
+```bash
+pytest -v \
+  tests/test_execution.py \
+  tests/test_deterministic_replay.py \
+  tests/test_macro2_2_hardening.py \
+  tests/test_macro2_completion.py \
+  tests/test_strategy_v1.py
+```
+
+Run Postgres concurrency integration test (requires DSN):
+
+```bash
+export TEST_POSTGRES_DSN="postgresql+asyncpg://user:pass@localhost:5432/forex_bot_test"
+pytest -v tests/test_postgres_concurrency.py
+```
 
 ---
 

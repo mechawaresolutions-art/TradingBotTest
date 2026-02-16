@@ -1,7 +1,7 @@
 """SQLAlchemy models for execution/paper broker."""
 from datetime import datetime
 from sqlalchemy import (
-    Column, Integer, String, Float, DateTime, ForeignKey, PrimaryKeyConstraint
+    Column, Integer, String, Float, DateTime, ForeignKey, PrimaryKeyConstraint, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
 from app.marketdata.models import Base
@@ -13,6 +13,9 @@ class Account(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     balance = Column(Float, nullable=False, default=0.0)
+    equity = Column(Float, nullable=False, default=0.0)
+    margin_used = Column(Float, nullable=False, default=0.0)
+    free_margin = Column(Float, nullable=False, default=0.0)
     currency = Column(String(10), nullable=False, default="USD")
     leverage = Column(Float, nullable=False, default=1.0)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=func.now(), onupdate=func.now())
@@ -20,6 +23,9 @@ class Account(Base):
 
 class Order(Base):
     __tablename__ = "orders"
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_orders_idempotency_key"),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     ts = Column(DateTime(timezone=True), nullable=False, default=func.now())
@@ -30,10 +36,14 @@ class Order(Base):
     status = Column(String(20), nullable=False, default="filled")
     reason = Column(String(255), nullable=True)
     requested_price = Column(Float, nullable=True)
+    idempotency_key = Column(String(128), nullable=True)
 
 
 class Fill(Base):
     __tablename__ = "fills"
+    __table_args__ = (
+        UniqueConstraint("order_id", name="uq_fills_order_id"),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False)
@@ -76,3 +86,18 @@ class Trade(Base):
     entry_order_id = Column(Integer, ForeignKey("orders.id", ondelete="SET NULL"), nullable=True)
     exit_order_id = Column(Integer, ForeignKey("orders.id", ondelete="SET NULL"), nullable=True)
 
+
+class AccountSnapshot(Base):
+    __tablename__ = "account_snapshots"
+    __table_args__ = (
+        UniqueConstraint("account_id", "ts", name="uq_account_snapshot_ts"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    account_id = Column(Integer, ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
+    ts = Column(DateTime(timezone=True), nullable=False)
+    balance = Column(Float, nullable=False)
+    equity = Column(Float, nullable=False)
+    margin_used = Column(Float, nullable=False)
+    free_margin = Column(Float, nullable=False)
+    unrealized_pnl = Column(Float, nullable=False, default=0.0)

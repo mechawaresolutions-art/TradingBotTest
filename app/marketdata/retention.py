@@ -18,12 +18,12 @@ async def prune_old_candles(session: AsyncSession) -> dict:
     cutoff_time = datetime.now(timezone.utc) - timedelta(days=retention_days)
     
     # Count before
-    stmt_before = select(func.count(Candle.id)).where(Candle.ingested_at < cutoff_time)
+    stmt_before = select(func.count(Candle.id)).where(Candle.open_time < cutoff_time)
     res_before = await session.execute(stmt_before)
     count_before = res_before.scalar() or 0
     
     # Delete candles older than cutoff
-    stmt_delete = delete(Candle).where(Candle.ingested_at < cutoff_time)
+    stmt_delete = delete(Candle).where(Candle.open_time < cutoff_time)
     result = await session.execute(stmt_delete)
     deleted_count = result.rowcount
     

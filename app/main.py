@@ -9,6 +9,9 @@ from app.config import Config
 from app.bot import TradingBot
 from app.marketdata import get_session, init_db, close_db, router as marketdata_router
 from app import execution as execution_pkg
+from app.equity import router as equity_router
+from app.oms import router as oms_router
+from app.risk import router as risk_router
 
 # Configure logging
 logging.basicConfig(
@@ -45,6 +48,14 @@ class StatusResponse(BaseModel):
     started_at: str | None
 
 
+class StrategyStatusResponse(BaseModel):
+    last_candle_time: str | None
+    last_signal: Dict[str, Any] | None
+    cooldown_active: bool
+    cooldown_until: str | None
+    open_position: Dict[str, Any] | None
+
+
 # Include market data router
 app.include_router(marketdata_router)
 # Include execution router
@@ -53,6 +64,9 @@ try:
     app.include_router(execution_router)
 except Exception:
     logger.debug("Execution router not available at import time")
+app.include_router(equity_router)
+app.include_router(oms_router)
+app.include_router(risk_router)
 
 
 @app.on_event("startup")
@@ -65,6 +79,10 @@ async def startup_event() -> None:
             import app.execution.models  # noqa: F401
         except Exception:
             logger.debug("No execution models to import yet")
+        try:
+            import app.risk.models  # noqa: F401
+        except Exception:
+            logger.debug("No risk models to import yet")
         await init_db()
         logger.info("Database initialized successfully")
     except Exception as e:
@@ -111,6 +129,12 @@ async def get_status() -> StatusResponse:
     """Get bot status and metrics."""
     status = bot.get_status()
     return StatusResponse(**status)
+
+
+@app.get("/v3/strategy/status", response_model=StrategyStatusResponse)
+async def get_strategy_status() -> StrategyStatusResponse:
+    """Get latest strategy loop state."""
+    return StrategyStatusResponse(**bot.get_strategy_status())
 
 
 @app.get("/health")

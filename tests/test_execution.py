@@ -55,17 +55,17 @@ async def test_netting_and_realized_pnl(session):
     session.add(c)
     await session.commit()
 
-    # Open long 2 @ ask
-    _, f1 = await place_market_order(session, "EURUSD", "BUY", 2.0)
-    # Add long 1 @ higher ask (simulate price move)
+    # Open long 1 @ ask
+    _, f1 = await place_market_order(session, "EURUSD", "BUY", 1.0)
+    # Add long 0.5 @ higher ask (simulate price move)
     # insert new candle
     c2 = make_candle(close=1.2010, open_time=c.open_time + timedelta(minutes=5))
     session.add(c2)
     await session.commit()
-    _, f2 = await place_market_order(session, "EURUSD", "BUY", 1.0)
+    _, f2 = await place_market_order(session, "EURUSD", "BUY", 0.5)
 
-    # Now sell 2 to partially close
-    _, f3 = await place_market_order(session, "EURUSD", "SELL", 2.0)
+    # Now sell 1 to partially close
+    _, f3 = await place_market_order(session, "EURUSD", "SELL", 1.0)
 
     # Check positions table
     stmt = select(Position).where(Position.symbol == 'EURUSD')

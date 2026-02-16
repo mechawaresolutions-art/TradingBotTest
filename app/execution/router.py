@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 from app.marketdata import get_session
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.execution.service import place_market_order, ensure_account, mark_to_market, update_on_candle
+from app.execution.service import place_market_order, ensure_account, mark_to_market, update_on_candle, derive_bid_ask
 from pydantic import BaseModel, Field
 from app.execution.models import Position, Order
 
@@ -23,6 +23,7 @@ class OrderIn(BaseModel):
     sl: float | None = None
     tp: float | None = None
     reason: str | None = ""
+    idempotency_key: str | None = None
 
 
 @router.get("/account", response_model=AccountOut)
@@ -47,10 +48,25 @@ async def get_positions(session: AsyncSession = Depends(get_session)):
 @router.post("/orders/market")
 async def post_market_order(payload: OrderIn, session: AsyncSession = Depends(get_session)):
     try:
-        order, fill = await place_market_order(session, payload.symbol, payload.side, payload.qty, sl=payload.sl, tp=payload.tp, reason=payload.reason or "")
+        order, fill = await place_market_order(
+            session,
+            payload.symbol,
+            payload.side,
+            payload.qty,
+            sl=payload.sl,
+            tp=payload.tp,
+            reason=payload.reason or "",
+            idempotency_key=payload.idempotency_key,
+        )
         return {"order_id": order.id, "fill": {"price": fill.price, "qty": fill.qty}}
     except RuntimeError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/market_order")
+async def post_market_order_legacy(payload: OrderIn, session: AsyncSession = Depends(get_session)):
+    """Backward-compatible alias for market order placement."""
+    return await post_market_order(payload, session)
 
 
 class StepIn(BaseModel):
@@ -82,9 +98,6 @@ async def execution_step(payload: StepIn, session: AsyncSession = Depends(get_se
     executed = await update_on_candle(session, c)
     # compute MTM
     from app.config import Config as cfg
-    mid = float(c.close)
-    half = (cfg.SPREAD_PIPS * 0.0001) / 2.0
-    bid = mid - half
-    ask = mid + half
+    bid, ask = derive_bid_ask(c, cfg.SPREAD_PIPS)
     mtm = await mark_to_market(session, symbol, bid, ask)
     return {"executed": executed, "mtm": mtm}
