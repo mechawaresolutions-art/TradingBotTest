@@ -12,6 +12,7 @@ from app import execution as execution_pkg
 from app.equity import router as equity_router
 from app.oms import router as oms_router
 from app.risk import router as risk_router
+from app.accounting import router as accounting_router
 
 # Configure logging
 logging.basicConfig(
@@ -67,6 +68,7 @@ except Exception:
 app.include_router(equity_router)
 app.include_router(oms_router)
 app.include_router(risk_router)
+app.include_router(accounting_router)
 
 
 @app.on_event("startup")
@@ -83,6 +85,10 @@ async def startup_event() -> None:
             import app.risk.models  # noqa: F401
         except Exception:
             logger.debug("No risk models to import yet")
+        try:
+            import app.accounting.models  # noqa: F401
+        except Exception:
+            logger.debug("No accounting models to import yet")
         await init_db()
         logger.info("Database initialized successfully")
     except Exception as e:
