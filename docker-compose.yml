@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   postgres:
@@ -33,10 +33,28 @@ services:
     build: .
     container_name: forex-bot
     restart: unless-stopped
-    ports:
-      - "8000:8000"
+
+    # Do NOT publish 8000 on the host (Traefik will route internally)
+    expose:
+      - "8000"
+
+    # Must be reachable by Traefik (n8n_default) + your local stack (default)
+    networks:
+      - n8n_default
+      - default
+
+    # Traefik routing for api.srv1306536.hstgr.cloud -> this container:8000
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=n8n_default"
+      - "traefik.http.routers.forexbot7.entrypoints=web,websecure"
+      - "traefik.http.routers.forexbot7.rule=Host(`api.srv1306536.hstgr.cloud`)"
+      - "traefik.http.routers.forexbot7.tls=true"
+      - "traefik.http.routers.forexbot7.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.forexbot7.loadbalancer.server.port=8000"
+
     environment:
-      - DATABASE_URL=postgresql+asyncpg://${DB_USER:-tradingbot}:${DB_PASSWORD:-tradingbot_pass}@postgres:5432/${DB_NAME:-tradingbot}
+      - DATABASE_URL=postgresql+asyncpg://tradingbot:tradingbot_pass@forex-bot-db:5432/tradingbot
       - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL}
       - HEARTBEAT_INTERVAL=${HEARTBEAT_INTERVAL:-60}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
@@ -47,15 +65,16 @@ services:
       - INGEST_OVERLAP_CANDLES=${INGEST_OVERLAP_CANDLES:-10}
       - INITIAL_BACKFILL_DAYS=${INITIAL_BACKFILL_DAYS:-7}
       - MARKET_DATA_PROVIDER=${MARKET_DATA_PROVIDER:-mock}
+
     depends_on:
       postgres:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+
 
 volumes:
   postgres_data:
+
+networks:
+  n8n_default:
+    external: true
+
