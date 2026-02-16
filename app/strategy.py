@@ -1,4 +1,5 @@
 """Trading strategy module."""
+from typing import Optional
 import logging
 from typing import Dict, Any
 from dataclasses import dataclass

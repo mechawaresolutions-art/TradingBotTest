@@ -16,9 +16,9 @@ class Candle(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     # Primary columns
-    symbol = Column(String(20), nullable=False, index=True)
-    timeframe = Column(String(10), nullable=False, index=True)
-    open_time = Column(DateTime(timezone=True), nullable=False, index=True)
+    symbol = Column(String(20), primary_key=True, index=True)
+    timeframe = Column(String(10), primary_key=True, index=True)
+    open_time = Column(DateTime(timezone=True), primary_key=True, index=True)
     
     # OHLCV
     open = Column(Float, nullable=False)
