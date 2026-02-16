@@ -54,6 +54,7 @@ class Fill(Base):
     price = Column(Float, nullable=False)
     fee = Column(Float, nullable=False, default=0.0)
     slippage = Column(Float, nullable=False, default=0.0)
+    accounted_at_open_time = Column(DateTime(timezone=True), nullable=True)
 
 
 class Position(Base):
