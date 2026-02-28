@@ -45,7 +45,7 @@ async def account_status(
 ) -> AccountStatusOut:
     asof = await _resolve_asof(session, symbol, timeframe, asof_open_time)
 
-    async with session.begin():
+    try:
         snap = await AccountingEngine.process_accounting_for_candle(
             session,
             account_id=account_id,
@@ -53,6 +53,10 @@ async def account_status(
             timeframe=timeframe,
             asof_open_time=asof,
         )
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
 
     pos = (
         await session.execute(
@@ -125,8 +129,9 @@ async def recompute(payload: RecomputeIn, session: AsyncSession = Depends(get_se
     )
     candles = list(res.scalars().all())
 
+
     last = None
-    async with session.begin():
+    try:
         for c in candles:
             last = await AccountingEngine.process_accounting_for_candle(
                 session,
@@ -135,6 +140,14 @@ async def recompute(payload: RecomputeIn, session: AsyncSession = Depends(get_se
                 timeframe=payload.timeframe,
                 asof_open_time=c.open_time,
             )
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+
+
+
+
 
     return RecomputeOut(
         processed_candles=len(candles),
