@@ -14,6 +14,7 @@ from app.oms import router as oms_router
 from app.risk import router as risk_router
 from app.accounting import router as accounting_router
 from app.strategy_engine import router as strategy_router
+from app.orchestrator import router as orchestrator_router
 
 # Configure logging
 logging.basicConfig(
@@ -71,6 +72,7 @@ app.include_router(oms_router)
 app.include_router(risk_router)
 app.include_router(accounting_router)
 app.include_router(strategy_router)
+app.include_router(orchestrator_router)
 
 
 @app.on_event("startup")
@@ -91,6 +93,10 @@ async def startup_event() -> None:
             import app.accounting.models  # noqa: F401
         except Exception:
             logger.debug("No accounting models to import yet")
+        try:
+            import app.orchestrator.models  # noqa: F401
+        except Exception:
+            logger.debug("No orchestrator models to import yet")
         await init_db()
         logger.info("Database initialized successfully")
     except Exception as e:
